@@ -1,0 +1,43 @@
+/*===============================
+//Author:	carmazhao
+//Date:		2011/1/2
+//Function:	counting the time	
+//			and execute the funcs
+//
+================================*/
+#ifndef GRAPH_TIMER_HEAD_
+#define GRAPH_TIMER_HEAD_
+#include "sysDef.h"
+#include <vector>
+
+typedef  void (*handle_func)();
+class embed_handleUnit{
+public:
+	uint_32 	m_cur_time;
+	uint_32		m_tot_time;
+	handle_func 	m_handler;
+	void *		m_param;
+
+	void 		check();
+};
+
+class TimerManager
+{
+	DEFINE_SINGLE_MODEL(TimerManager)
+public:
+	~TimerManager();
+		
+	void			count_time();
+	bool 			add_timer_event(uint_32 interval = 0,		\
+										handle_func handle = NULL , \
+										void * _param = NULL);	
+	void 			remove_timer_event(handle_func);
+
+private:
+	TimerManager();
+
+	std::vector<embed_handleUnit> 	m_handle_unit_arr;
+	void			check_funcs();
+	uint_32			m_time_note;
+};
+#endif

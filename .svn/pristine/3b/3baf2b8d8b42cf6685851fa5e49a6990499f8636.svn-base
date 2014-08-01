@@ -1,0 +1,78 @@
+#ifndef SYS_DEFINE_HEAD_
+#define SYS_DEFINE_HEAD_
+//sys
+#include <windows.h>
+
+//std
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <string.h>
+
+//opengl
+#include <gl/gl.h>
+#include <gl/glu.h>
+#include <gl/glaux.h>
+
+//needed lib
+//net lib
+#pragma comment(lib , "ws2_32.lib")
+//opengl lib
+#pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "glu32.lib")
+#pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "GLAUX.LIB")
+//free image lib
+#pragma comment(lib , "FreeImage.lib")
+
+//---ecapsulate the data kind
+typedef long long               int_64;
+typedef unsigned long long      uint_64;
+typedef unsigned int            uint_32;
+typedef int 					int_32;
+typedef unsigned short			uint_16;
+typedef short 					int_16;
+typedef unsigned char 			uint_8;
+typedef char 					int_8;
+#define	INPUT_TEXT  20
+#define	GRAPH_PATH_TEXT 21
+#define BTN_OK		1
+#define BTN_IMPORT  2
+#define BTN_REMOVE	3
+
+//---the error code
+//SOCKET ERROR
+#define			INITIAL_SOCKE_ERROR		10001
+#define			CREATE_SOCKET_ERROR		10002
+#define			SOCKET_CONNECT_ERROR	10003
+
+#define			SOCKET_SEND_MSG_ERROR	10004
+#define			SOCKET_REV_MSG_ERROR	10005
+
+//THREAD_ERROR
+#define			CREATE_THREAD_ERROR		20001
+	
+//define the single instance pattern
+#define DEFINE_OBJ_POOL(_T) private:\
+	static objPool<_T> _pool;\
+				public:\
+				void* operator new (size_t size) {return _pool.malloc_mem();}\
+				void operator delete(void* p) {_pool.free_mem(p);}
+#define IMPLEMENT_OBJ_POOL(_T) objPool<_T> _T::_pool;
+
+#define DEFINE_SINGLE_MODEL(_T)	private:\
+	static _T * h_inst;\
+				public:\
+				static _T * get_instance();
+
+#define IMPLEMENT_SINGLE_MODEL(_T) 	_T * _T::h_inst(NULL);\
+	_T * _T::get_instance() {\
+	if(h_inst == NULL) {\
+	h_inst = new _T();\
+	}\
+	return h_inst;\
+}
+//define the copy mem
+#define COPY_FROM_MEM(_target,_mem)  memcpy(&_target , _mem , sizeof(_target));\
+	_mem += sizeof(_target);
+#endif

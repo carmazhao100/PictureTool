@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="resourceConfiger">
+</Property><Property Name="解决方案文件" Value="E:\前端代码备份\前端代码\ResourceConfiger08\resourceConfiger\resourceConfiger.sln">
+</Property><Property Name="Date" Value="2012年5月29日">
+</Property><Property Name="Time" Value="18:38">
+</Property></Properties><Event ErrorLevel="0" Project="resourceConfiger" Source="resourceConfiger\resourceConfiger.vcproj" Description="Converting project file 'E:\前端代码备份\前端代码\ResourceConfiger08\resourceConfiger\resourceConfiger\resourceConfiger.vcproj'.">
+</Event><Event ErrorLevel="1" Project="resourceConfiger" Source="resourceConfiger\resourceConfiger.vcproj" Description="VCWebServiceProxyGeneratorTool is no longer supported. The tool has been removed from your project settings.">
+</Event><Event ErrorLevel="0" Project="resourceConfiger" Source="resourceConfiger\resourceConfiger.vcproj" Description="Done converting to new project file 'E:\前端代码备份\前端代码\ResourceConfiger08\resourceConfiger\resourceConfiger\resourceConfiger.vcxproj'.">
+</Event><Event ErrorLevel="3" Project="resourceConfiger" Source="resourceConfiger\resourceConfiger.vcproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="resourceConfiger.sln" Description="成功转换解决方案">
+</Event><Event ErrorLevel="3" Project="" Source="resourceConfiger.sln" Description="Converted">
+</Event></UpgradeLog>

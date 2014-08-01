@@ -1,0 +1,376 @@
+#include "InfoStore.h"
+#include "TextureManager.h"
+#include "sysDef.h"
+#include<string.h>
+#include <fstream>
+extern HWND hWnd;
+extern HWND input_wnd;
+extern HWND input_path_wnd;
+extern char * current_path;
+#define		MAX_NAME_SIZE	50
+cell::cell(int_32 _x , int_32 _y ,int_32 _width , int_32 _height) {
+	m_x = _x;
+	m_y = _y;
+	m_width = _width;
+	m_height = _height;
+	m_enable = false;
+	m_name = NULL;
+}
+cell::~cell() {
+	if(m_name != NULL)
+		delete [] m_name;
+}
+cell::cell(const cell &_cell) {
+	m_x = _cell.m_x;
+	m_y = _cell.m_y;
+	m_width = _cell.m_width;
+	m_height = _cell.m_height;
+	m_enable = _cell.m_enable;
+	if(_cell.m_name == NULL) {
+		m_name = NULL;
+		return ;
+	}
+	int length = strlen(_cell.m_name);
+	m_name = new char[length+1];
+	strcpy(m_name , _cell.m_name);
+}
+void	cell::set_enable() {
+	m_enable = true;
+}
+
+void cell::set_disable() {
+	m_enable = false;
+}
+bool cell::check_in(int _x , int _y) {
+	if (_x>=m_x&&
+		_y>=m_y&&
+		_x<=m_x+m_width&&
+		_y<=m_y+m_height)
+	{
+		return true;
+	}
+	return false;
+} 
+
+/************************************/
+IMPLEMENT_SINGLE_MODEL(InfoStore)
+
+InfoStore::InfoStore() {
+	m_ctr_flag = CTR_UP;
+}
+
+InfoStore::~InfoStore() {
+	
+}
+void InfoStore::initial(){
+	m_num_width = TextureManager::Inst()->m_width / 32;
+	m_num_height = TextureManager::Inst()->m_height / 32;
+
+	int _sum = m_num_width*m_num_height;
+	//清理数组
+	m_small_array.clear();
+	m_big_array.clear();
+	m_selected.clear();
+	
+	for(int i =0;i<_sum;i++) {
+		cell c((i%m_num_width)*32 , (i/m_num_width) * 32 , 32 , 32);
+		m_small_array.push_back(c);
+	}
+}
+
+cell & InfoStore::get_small_cell(int _x , int _y) {
+	_x = _x/32;
+	_y = _y/32;
+
+	return m_small_array[_x + _y * m_num_width];
+}
+void InfoStore::pitch(int _x , int _y) {
+	SetWindowText(input_wnd ,"");
+	unsigned int i = 0;
+	cell  * pcell = NULL;
+	//转换坐标系
+	_y = TextureManager::Inst()->m_height - _y;
+
+	//先检查大的里面，如果被包围了， 就先清理，把大的塞进显示队列
+	for(i = 0 ; i < m_big_array.size(); i++) {
+		if(m_big_array[i].check_in(_x , _y)) {
+			pcell = &(m_big_array[i]);
+			m_selected.clear();
+			m_selected.push_back(pcell);
+			SetWindowText(input_wnd , pcell->m_name);
+			return;
+		}
+	}
+
+	//在检查小的里面
+	pcell = &(get_small_cell(_x , _y));
+	//如果这个已经编辑过了 那肯定就不用管神马下面的了
+	if(pcell->m_enable) {
+		m_selected.clear();
+		m_selected.push_back(pcell);
+		SetWindowText(input_wnd , m_selected[0]->m_name);
+		return;
+	}
+	//如果已经选择过了那么就删除掉
+	for(unsigned int i = 0;i<m_selected.size();i++){
+		if(m_selected[i] == pcell) {
+			m_selected.erase(m_selected.begin()+i);
+			return;
+		}
+	}
+	//如果没有再大的里面 并且已经选出来了小的cell 那么就看
+	//是需要联合还是单个
+	if(m_ctr_flag == CTR_UP) {
+		m_selected.clear();
+		m_selected.push_back(pcell);
+	}else if(m_ctr_flag == CTR_DOWN) {
+		m_selected.push_back(pcell);
+	}
+}
+
+void InfoStore::set_ctr_flag(int _flag) {
+	m_ctr_flag = _flag;
+}
+
+void InfoStore::draw_red() {
+	glColor4f(1.0,0.0,0.0 , 0.7);
+	glEnable(GL_BLEND);	
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);	
+	for (unsigned int i = 0;i<m_selected.size();i++)
+	{
+		glBegin(GL_POLYGON);
+		glVertex2d(m_selected[i]->m_x  , TextureManager::Inst()->m_height - m_selected[i]->m_y);
+		glVertex2d(m_selected[i]->m_x+m_selected[i]->m_width ,  TextureManager::Inst()->m_height- m_selected[i]->m_y);
+		glVertex2d(m_selected[i]->m_x+m_selected[i]->m_width,TextureManager::Inst()->m_height - (m_selected[i]->m_y+m_selected[i]->m_height));
+		glVertex2d(m_selected[i]->m_x , TextureManager::Inst()->m_height - (m_selected[i]->m_y+m_selected[i]->m_height));
+		glEnd();
+	}
+	glDisable(GL_BLEND);
+}
+
+void InfoStore::on_ok_button(char * _name) {
+	int min_x , min_y , max_x , max_y;
+	cell * pcell = NULL;
+
+	if(m_selected.size() == 0) {
+		return ;
+	}
+	if(m_selected.size() == 1) {
+		//设置选中
+		m_selected[0]->set_enable();
+		if(m_selected[0]->m_name != NULL) {
+			delete [] m_selected[0]->m_name;
+		}
+		m_selected[0]->m_name = new char[MAX_NAME_SIZE];
+		strcpy(m_selected[0]->m_name , _name);
+		m_selected.clear();
+		return;
+	}
+	//如果是需要多个合并的话
+	
+		
+		min_x = m_selected[0]->m_x;
+		max_x = m_selected[0]->m_x;
+
+		min_y = m_selected[0]->m_y;
+		max_y = m_selected[0]->m_y;
+
+		for(unsigned int i = 0 ; i<m_selected.size();i++) {
+			if(m_selected[i]->m_x < min_x) {
+				min_x = m_selected[i]->m_x;
+			}
+			if(m_selected[i]->m_y < min_y) {
+				min_y = m_selected[i]->m_y;
+			}
+			if(m_selected[i]->m_x > max_x) {
+				max_x = m_selected[i]->m_x;
+			}
+			if(m_selected[i]->m_y > max_y) {
+				max_y = m_selected[i]->m_y;
+			}
+		}
+		cell _cell(min_x ,min_y , max_x-min_x+32 ,  max_y-min_y+32);
+		_cell.m_name = new char[MAX_NAME_SIZE];
+		strcpy(_cell.m_name , _name);
+		_cell.set_enable();
+		m_big_array.push_back(_cell);
+		m_selected.clear();
+}
+
+void InfoStore::on_remove_button(){
+	if(m_selected.size() == 0) {
+		return ;
+	}
+	if(m_selected.size() == 1) {
+		//如果选中了不可消除的 那就直接返回
+		if(m_selected[0]->m_enable == false) {
+			return;
+		}
+		//如果是32的图片
+		if(m_selected[0]->m_width == 32 && m_selected[0]->m_height == 32) {
+			m_selected[0]->set_disable();
+			if(m_selected[0]->m_name != NULL) {
+				delete [] m_selected[0]->m_name;
+				m_selected[0]->m_name = NULL;
+			}
+		}else{//如果是大的图片
+			for(unsigned int m = 0;m<m_big_array.size();m++) {
+				if(&(m_big_array[m]) == m_selected[0]) {
+					m_big_array.erase(m_big_array.begin()+m);
+				}
+			}
+		}
+		m_selected.clear();
+		SetWindowText(input_wnd ,"");
+		return;
+	}
+}
+#define		INI_SIZE  512
+#define		INTER	128
+void InfoStore::on_export_button(){
+	int		_x = 0 , _y = 0 , _width = 0 , _height = 0;
+
+
+	SetCurrentDirectory(current_path);
+	std::ofstream			_file(TEXT("导出来的配置文件") , std::ios::binary | std::ios::out);
+	//char * _file_buf = new char[INI_SIZE];
+
+	if(m_small_array.size() == 0) {
+		MessageBox(NULL , "なに！！" , "ERROR" , MB_OK);
+	}
+	//关于获取文件路径写入
+	char * buff = new char[100];
+	GetDlgItemText(hWnd , GRAPH_PATH_TEXT , buff , 100);
+	int		length = strlen(buff);
+	length = htonl(length);
+	_file.write((char *)(&length),sizeof (length));
+	length = ntohl(length);
+	_file.write(buff,length);
+	delete []buff;
+
+	for(int i = 0;i < m_small_array.size();i++) {
+		if(m_small_array[i].m_enable) {
+			length = strlen(m_small_array[i].m_name);
+			length = htonl(length);
+			_file.write((char *)(&length),sizeof (length));
+			length = ntohl(length);
+			//写入名字
+			_file.write(m_small_array[i].m_name,length);
+			//写入数据
+			_x = m_small_array[i].m_x;
+			_y = m_small_array[i].m_y;
+			_width = m_small_array[i].m_width;
+			_height = m_small_array[i].m_height;
+
+			_x = htonl(_x);
+			_y = htonl(_y);
+			_width = htonl(_width);
+			_height = htonl(_height);
+
+			_file.write((char *)(&_x),sizeof (int));
+			_file.write((char *)(&_y),sizeof (int));
+			_file.write((char *)(&_width),sizeof (int));
+			_file.write((char *)(&_height),sizeof (int));
+		}
+	}
+	for(int i = 0;i < m_big_array.size();i++) {
+		if(m_big_array[i].m_enable) {
+			length = strlen(m_big_array[i].m_name);
+			length = htonl(length);
+			_file.write((char *)(&length),sizeof (length));
+			length = ntohl(length);
+			//写入名字
+			_file.write(m_big_array[i].m_name,length);
+			//写入数据
+			_x = m_big_array[i].m_x;
+			_y = m_big_array[i].m_y;
+			_width = m_big_array[i].m_width;
+			_height = m_big_array[i].m_height;
+
+			_x = htonl(_x);
+			_y = htonl(_y);
+			_width = htonl(_width);
+			_height = htonl(_height);
+
+			_file.write((char *)(&_x),sizeof (int));
+			_file.write((char *)(&_y),sizeof (int));
+			_file.write((char *)(&_width),sizeof (int));
+			_file.write((char *)(&_height),sizeof (int));
+		}
+	}
+	_file.close();
+	MessageBox(NULL , "导出配置文件成功" , "牛逼啊" , MB_OK);
+}
+
+void InfoStore::on_import_ini(char * _file_name) {
+	SetCurrentDirectory(current_path);
+	std::fstream			 _file;
+	int_32					 _data;
+	int_8					 _grade_name[40];
+	int_8					 _graph_path[50];
+
+	int_32					x = 0;
+	int_32					y = 0;
+	int_32					width = 0;
+	int_32					height = 0;
+
+	for (int i = 0;i < strlen(_file_name); i++)
+	{
+		 if (_file_name[i] == '\\')
+		 {
+			 _file_name[i] = '/';
+		 }
+	}
+	_file.open("test.fm" , std::ios::binary | std::ios::in);
+
+	//first read the graph file name
+	_file.read((int_8 *)(&_data) , sizeof(_data));
+	_data = ntohl(_data);
+	_file.read(_graph_path , _data); 
+	_graph_path[_data]= '\0';
+	SetWindowText(input_path_wnd ,_graph_path);
+
+	//read all the grade information
+	while (!_file.eof())
+	{
+		//read grade name
+		if(!_file.read((int_8 *)(&_data) , sizeof(_data))) {
+			break;
+		}
+
+		_data = ntohl(_data);
+		_file.read(_grade_name , _data);
+		_grade_name[_data] = '\0';
+
+		//read x
+		_file.read((int_8 *)(&x) , sizeof(x));
+		x = ntohl(x);
+
+		//read y
+		_file.read((int_8 *)(&y) , sizeof(y));
+		y = ntohl(y);
+
+		//read width
+		_file.read((int_8 *)(&width) , sizeof(width));
+		width = ntohl(width);
+
+		//read height
+		_file.read((int_8 *)(&height) , sizeof(height));
+		height = ntohl(height);
+
+		if (height > 32 || width > 32)
+		{
+			cell _cell(x ,y ,width ,  height);
+			_cell.m_name = new char[MAX_NAME_SIZE];
+			strcpy(_cell.m_name , _grade_name );
+			m_big_array.push_back(_cell);
+		}else{
+			x += 2;
+			y += 2;
+			y = TextureManager::Inst()->m_height - y;
+			pitch(x,y);
+			on_ok_button(_grade_name);
+		}
+	}
+	_file.close();
+}

@@ -1,0 +1,462 @@
+#include<stdio.h>
+#include <windows.h>
+#include <gl\gl.h>
+#include <gl\glu.h>
+#include<gl\glaux.h>
+#include<math.h>
+#include<string>
+#include<vector>
+#include "sysDef.h"
+#include "TextureManager.h"
+#include "TimerManager.h"
+#include "InfoStore.h"
+#include "resource.h"
+using namespace std;
+
+
+#pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "glu32.lib")
+#pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "GLAUX.LIB")
+#pragma comment(lib , "FreeImage.lib")
+#define MAX_NUMBER 50
+
+
+HGLRC hRC=NULL;//着色描述表
+HDC  hDC=NULL;//设备描述表
+HWND hWnd;//窗口实例
+HWND input_wnd;//输入窗口实例
+HWND input_path_wnd;
+
+HWND btn_ok;
+HWND btn_import;
+HWND btn_remove;
+
+//当前工作路径
+char * current_path = new char[128];
+
+HINSTANCE hInstance;// 
+
+int texture;
+int x = 0;
+int y = 0;
+int width ;
+int height;
+//FLAGS
+bool	show_grab = false;
+
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+
+GLvoid ReSizeGLScene(GLsizei width,GLsizei height){
+	//if(height==0){
+	//	height=1;
+	//}
+	////glViewport(0,0,width,height);
+	//glMatrixMode(GL_PROJECTION);//选择投影矩阵
+	//glLoadIdentity();//重置投影矩阵
+	////gluPerspective(45.0f,(GLfloat)width/(GLfloat)height,0.1f,100000.0f);//此函数需查?????????????????????????????????
+
+	//glMatrixMode(GL_MODELVIEW);//模型矩阵
+	////glLoadIdentity();//重置模型矩阵
+}
+void loadPic(char * _file) {
+	TextureManager::Inst()->LoadTexture(_file ,texture , GL_RGBA , GL_RGBA);
+	InfoStore::get_instance()->initial();
+}
+int InitGL(GLvoid){
+
+	//调用纹理载入子例程
+	string name1 = "a.bmp";
+
+	texture = 10;
+	//loadPic("test.png");
+	glEnable(GL_TEXTURE_2D); // 启用纹理映射
+	glShadeModel(GL_SMOOTH);
+	glClearColor(0.0f,0.0f,0.0f,1.0f);
+	glClearDepth(1.0f);
+	glViewport(0,0,width , height);
+	//glViewport(0,-(GetSystemMetrics(SM_CYSMCAPTION) + GetSystemMetrics(SM_CYBORDER)),width , height);
+	
+	glHint(GL_PERSPECTIVE_CORRECTION_HINT,GL_NICEST);//真正精细的透视修正
+	//glOrtho(0,width,height,0,-0.1,0.1);
+
+	return true;
+}
+
+void draw_grade() {
+	glColor3f(1.0,0,0);
+	glLineWidth(0);
+	for (int i = 0;i<TextureManager::Inst()->m_width;i = i+32)
+	{
+			glBegin(GL_LINES);
+			glVertex2d(i , 0);
+			glVertex2d(i , TextureManager::Inst()->m_height);
+			glEnd();
+	}
+	for (int j = 0;j<TextureManager::Inst()->m_height;j = j+32)
+	{
+		glBegin(GL_LINES);
+		glVertex2d(0, j);
+		glVertex2d(TextureManager::Inst()->m_width , j);
+		glEnd();
+	}
+}
+
+void  DrawGLScene(GLvoid){
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glMatrixMode(GL_PROJECTION);//选择投影矩阵
+	glLoadIdentity();//重置投影矩阵
+	glMatrixMode(GL_MODELVIEW);//选择投影矩阵
+	glLoadIdentity();//重置投影矩阵\
+
+    glOrtho(0,width,height,0,-0.1,0.1);
+	glEnable(GL_TEXTURE_2D);
+	glTranslatef(0,GetSystemMetrics(SM_CYSMCAPTION)+28 , 0);
+	
+	if(!TextureManager::Inst()->BindTexture(texture)){
+		return ;
+	}
+	glBegin(GL_POLYGON);
+	glTexCoord2f(0.0f, 1.0f);glVertex2d(0,0);
+	glTexCoord2f(1.0f, 1.0f);glVertex2d(TextureManager::Inst()->m_width,0);
+	glTexCoord2f(1.0f, 0.0f);glVertex2d(TextureManager::Inst()->m_width,TextureManager::Inst()->m_height);
+	glTexCoord2f(0.0f, 0.0f);glVertex2d(0,TextureManager::Inst()->m_height);
+	glEnd();
+
+	glDisable(GL_TEXTURE_2D);
+	if(show_grab) {
+		draw_grade();
+	}
+	InfoStore::get_instance()->draw_red();
+}
+//将上面申请的东西们一个个销毁啊！
+GLvoid KillGLWindow(GLvoid){
+	if(hRC){
+		if(!wglMakeCurrent(hDC,hRC)){//???????????????????????????????????????????
+			MessageBox(NULL,"Release Of DC And RC Failed.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);
+		}
+	}
+	if(!wglDeleteContext(hRC)){
+		MessageBox(NULL,"Release Rendering Context Failed.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);
+		hRC=NULL;
+	}
+	if(hDC&&!ReleaseDC(hWnd,hDC)){
+		MessageBox(NULL,"Release Device Context Failed.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);
+		hDC=NULL;
+	}
+	if(hWnd&&!DestroyWindow(hWnd)){
+		MessageBox(NULL,"Could Not Release hWnd.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);
+		hWnd=NULL;
+	}
+	if(!UnregisterClass("opengl",hInstance)){
+		MessageBox(NULL,"Could Not Unregister Class.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);
+		hInstance=NULL;
+	}
+}
+void initial_controls() {
+	input_wnd =  CreateWindow (TEXT ("edit"), NULL,
+
+		WS_CHILD | WS_VISIBLE | WS_HSCROLL |
+
+		ES_LEFT | ES_MULTILINE |WS_BORDER|
+
+		ES_AUTOHSCROLL | ES_AUTOVSCROLL,
+
+		0, 0, 0, 0, hWnd, (HMENU) INPUT_TEXT,
+
+		hInstance, NULL) ;
+
+	MoveWindow(input_wnd,560,100,120,40,TRUE);
+
+	input_path_wnd =  CreateWindow (TEXT ("edit"), NULL,
+
+		WS_CHILD | WS_VISIBLE | WS_HSCROLL |
+
+		ES_LEFT | ES_MULTILINE |WS_BORDER|
+
+		ES_AUTOHSCROLL | ES_AUTOVSCROLL,
+
+		0, 0, 0, 0, hWnd, (HMENU) GRAPH_PATH_TEXT,
+
+		hInstance, NULL) ;
+
+	MoveWindow(input_path_wnd,560,50,120,40,TRUE);
+	SetWindowText(input_path_wnd , "这里写加载图片的地址");
+
+	btn_ok = CreateWindow(TEXT("button"),"确定",
+		WS_CHILD | WS_VISIBLE|BS_DEFPUSHBUTTON,
+		560,150,100,40,hWnd,(HMENU)BTN_OK,hInstance,NULL);
+	btn_import = CreateWindow(TEXT("button"),"导出配置",
+		WS_CHILD | WS_VISIBLE|BS_DEFPUSHBUTTON,
+		560,200,100,40,hWnd,(HMENU)BTN_IMPORT,hInstance,NULL);
+	btn_remove = CreateWindow(TEXT("button"),"撤销",
+		WS_CHILD | WS_VISIBLE|BS_DEFPUSHBUTTON,
+		560,250,100,40,hWnd,(HMENU)BTN_REMOVE,hInstance,NULL);
+}
+void rend() {
+	DrawGLScene();
+	SwapBuffers(hDC);
+}
+//创造窗口的程序
+BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag){
+	//像素格式！
+	GLuint PixelFormat;//type GLuint = DWord;
+	WNDCLASS wc;
+	//窗体风格
+	DWORD dwExStyle;
+	DWORD dwStyle;
+	//窗体大小
+	RECT WindowRect;
+	WindowRect.top=(long)0;;
+	WindowRect.left=(long)0;
+	WindowRect.right=(long)width;
+	WindowRect.bottom=(long)height;
+	//窗口的各种性质
+	hInstance = GetModuleHandle(NULL);
+	wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+	wc.lpfnWndProc = (WNDPROC) WndProc;
+	wc.cbClsExtra = 0;
+	wc.cbWndExtra = 0;
+	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(NULL, IDI_WINLOGO);
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hbrBackground = NULL;
+	wc.lpszMenuName = NULL;
+	wc.lpszClassName = "OpenGL"; 
+	//注册窗口
+	if(!RegisterClass(&wc)){
+		MessageBox(NULL,"Failed To Register The Window Class.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE;  
+	}
+		//因为全屏可能不成功并且用户选择窗口
+		
+			dwExStyle=WS_EX_WINDOWEDGE|WS_EX_APPWINDOW ;//后面的东西增强3d观感
+			dwStyle=WS_OVERLAPPEDWINDOW;
+	//AdjustWindowRectEx(&WindowRect,dwStyle,	FALSE,dwExStyle);
+	HMENU hMenu = LoadMenu(hInstance, MAKEINTRESOURCE(IDR_MENU1));
+	if(!(hWnd=CreateWindowEx(dwExStyle,"openGL",title,
+		(dwStyle|WS_CLIPCHILDREN|WS_CLIPSIBLINGS)& ~WS_MAXIMIZEBOX& ~WS_THICKFRAME,
+		WindowRect.left,WindowRect.top,WindowRect.right-WindowRect.left,WindowRect.bottom-WindowRect.top,
+		NULL,hMenu,hInstance,NULL))){
+
+		KillGLWindow();
+		MessageBox(NULL,"Window Creation Error.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+	}
+	//记录像素格式
+	static PIXELFORMATDESCRIPTOR pfd={
+		sizeof(PIXELFORMATDESCRIPTOR),
+		1,
+		PFD_DRAW_TO_WINDOW |
+		PFD_SUPPORT_OPENGL |
+		PFD_DOUBLEBUFFER,
+		PFD_TYPE_RGBA,
+		bits,
+		0, 0, 0, 0, 0, 0,
+		0,
+		0,
+		0,
+		0, 0, 0, 0,
+		16,
+		0,
+		0,
+		PFD_MAIN_PLANE,
+		0,
+		0, 0, 0
+	};
+	//下面获得设备描述表
+	if(!(hDC=GetDC(hWnd))){
+		KillGLWindow();                                                              // 重置显示区
+		MessageBox(NULL,"Can't Create A GL Device Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE; 
+	}
+	//找到一个与设备结合的符合前述像素信息的像素
+	if(!(PixelFormat=ChoosePixelFormat(hDC,&pfd))){
+		KillGLWindow();                                                             // 重置显示区
+		MessageBox(NULL,"Can't Find A Suitable PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE;
+	}
+	//设置像素
+	if(!SetPixelFormat(hDC,PixelFormat,&pfd)){
+		KillGLWindow();                                                             // 重置显示区
+		MessageBox(NULL,"Can't Set The PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE;  
+	}
+	//分配色彩描述表
+	if(!(hRC=wglCreateContext(hDC))){
+		KillGLWindow();                                                             // 重置显示区
+		MessageBox(NULL,"Can't Create A GL Rendering Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE; 
+	}
+	//激活色彩描述表 
+	if(!wglMakeCurrent(hDC,hRC)){
+		KillGLWindow();                                                             // 重置显示区
+		MessageBox(NULL,"Can't Activate The GL Rendering Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE;  
+	}
+	//一切顺利~下面造窗口
+	ShowWindow(hWnd,SW_SHOW);
+	SetForegroundWindow(hWnd);
+	SetFocus(hWnd);
+//	ReSizeGLScene(width,height);
+	if(!InitGL()){
+		KillGLWindow();                                                             // 重置显示区
+		MessageBox(NULL,"Initialization Failed.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return FALSE; 
+	}
+	initial_controls();
+	return true;
+}
+LRESULT CALLBACK WndProc( HWND hWnd, 
+UINT uMsg, 
+WPARAM wParam, 
+LPARAM lParam) {
+	//鼠标捕捉
+	int x = 0;
+	int y = 0;
+	//存储名字
+	char * buff = new char[100];
+//存储路径
+	char   fileName[256];  
+	OPENFILENAME   ofStruct; 
+	switch (uMsg) {
+		case WM_CREATE:{
+			TimerManager::get_instance()->add_timer_event(50 , rend , NULL);
+			return 0;
+					   }
+		case WM_COMMAND:
+			switch (wParam)
+			{
+			case BTN_OK:
+				GetDlgItemText(hWnd , INPUT_TEXT , buff , 100);
+				if(buff[0] == '\0') {
+					MessageBox(NULL,"亲，输入资源名字哦","犯错咯！",MB_OK);
+					return 0;
+				}
+				InfoStore::get_instance()->on_ok_button(buff);
+				break;
+			case BTN_REMOVE:
+				InfoStore::get_instance()->on_remove_button();
+				break;
+			case BTN_IMPORT:
+				InfoStore::get_instance()->on_export_button();
+				break;
+				//如果是菜单 读入
+			case ID_40001:
+				
+				fileName[0]=0;   
+				ZeroMemory(&ofStruct,sizeof(ofStruct));   
+				ofStruct.lStructSize=sizeof(OPENFILENAME);   
+				ofStruct.hwndOwner=hWnd;   
+				ofStruct.nFilterIndex=1;   
+				ofStruct.lpstrFile=fileName;   
+				ofStruct.nMaxFile=sizeof(fileName);   
+				ofStruct.lpstrTitle="Choose   a   flash";   
+				ofStruct.Flags=OFN_FILEMUSTEXIST;   
+				ofStruct.lpstrDefExt="*";   
+				ofStruct.lpstrInitialDir=".";  
+				GetOpenFileName(&ofStruct);
+				strcpy(fileName , ofStruct.lpstrFile);
+				if (strcmp(fileName, "") != 0)
+				{
+					loadPic(fileName);
+				}
+				
+				break;
+			case ID_40002: 
+				/*fileName[0]=0;
+				ZeroMemory(&ofStruct,sizeof(ofStruct));   
+				ofStruct.lStructSize=sizeof(OPENFILENAME);   
+				ofStruct.hwndOwner=hWnd;   
+				ofStruct.nFilterIndex=1;   
+				ofStruct.lpstrFile=fileName;   
+				ofStruct.nMaxFile=sizeof(fileName);   
+				ofStruct.lpstrTitle="Choose   a   flash";   
+				ofStruct.Flags=OFN_FILEMUSTEXIST;   
+				ofStruct.lpstrDefExt="*";   
+				ofStruct.lpstrInitialDir=".";  
+				GetOpenFileName(&ofStruct);
+				strcpy(fileName , ofStruct.lpstrFile);
+				if (strcmp(fileName, "") != 0)*/
+				{
+					InfoStore::get_instance()->on_import_ini(fileName);
+				}
+				
+				break;
+			}
+			return 0;
+		case WM_LBUTTONDOWN:
+			x = LOWORD(lParam);
+			y = HIWORD(lParam);
+			if(x > 0 && y > 0 && x <TextureManager::Inst()->m_width && y < TextureManager::Inst()->m_height) {
+				InfoStore::get_instance()->pitch(x , y);
+			}
+			SetFocus(hWnd);
+			return 0;
+		case WM_KEYDOWN:
+			if(wParam == ' ') {
+				if(show_grab) {
+					show_grab = false;
+				}else {
+					show_grab = true;
+				}
+			}
+			if(wParam = 17) {
+				InfoStore::get_instance()->set_ctr_flag(InfoStore::CTR_DOWN);
+			}
+			return 0;
+		case WM_CLOSE:{
+			if(buff !=NULL ){
+				delete [] buff;
+			}
+			DestroyWindow(hWnd);
+			return 0;
+		}
+		case WM_DESTROY:{	
+			PostQuitMessage(0);
+			return 0;
+		}
+		case WM_KEYUP:	
+			if(wParam = 17) {
+				InfoStore::get_instance()->set_ctr_flag(InfoStore::CTR_UP);
+			}
+			return 0;								
+		case WM_SIZE: 
+			ReSizeGLScene(LOWORD(lParam),HIWORD(lParam));  
+			return 0; 
+		default:
+			return DefWindowProc(hWnd,uMsg,wParam,lParam);
+	}
+}
+
+int WINAPI WinMain( HINSTANCE hInstance,
+HINSTANCE hPrevInstance,
+LPSTR lpCmdLine, 
+int nCmdShow) {
+	MSG msg; 
+	BOOL done=FALSE;
+	//这里可以获得屏幕的长宽
+	width =800;
+	height = 600;
+	GetCurrentDirectory(128 , current_path);
+	if (!CreateGLWindow("ResourceConfiger",width,height,16,false)){
+		return 0; // 失败退出
+	}
+	while(!done){
+		if(PeekMessage(&msg,NULL,0,0,PM_REMOVE))
+		{
+			if(msg.message==WM_QUIT)
+				break;
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		else{
+			TimerManager::get_instance()->count_time();
+		}
+	}
+}
+
+
+
+

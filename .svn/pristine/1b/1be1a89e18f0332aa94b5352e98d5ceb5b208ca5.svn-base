@@ -1,0 +1,58 @@
+#ifndef INFO_STORE_HEAD_
+#define INFO_STORE_HEAD_
+#include "sysDef.h"
+#include <vector>
+
+class cell {
+public:
+	cell(int_32 _x , int_32 _y , int_32 _width , int_32 _height);
+	~cell();
+
+	cell(const cell &);
+
+	void	set_enable();
+	void	set_disable();
+
+	bool	check_in(int _x , int _y);
+
+	int_32	m_x;
+	int_32	m_y;
+	int_32	m_width;
+	int_32	m_height;
+	bool	m_enable;
+	char *	m_name;
+};
+class InfoStore
+{
+	DEFINE_SINGLE_MODEL(InfoStore)
+public:
+	~InfoStore();
+	enum {
+		CTR_DOWN,
+		CTR_UP
+	};
+
+	void		initial();
+	void		set_ctr_flag(int _flag);
+	void		pitch(int _x , int _y);
+	void		draw_red();
+	void		on_ok_button(char *);
+	void		on_remove_button();
+
+	void		on_export_button();
+	void		on_import_ini(char * _file_name);
+private:
+	InfoStore();
+	
+	std::vector<cell>	m_big_array;
+	std::vector<cell>   m_small_array;
+
+	std::vector<cell *>	m_selected;
+
+	int			m_num_width; //每行总数
+	int			m_num_height;//每列总数
+
+	int			m_ctr_flag;
+	cell&	get_small_cell(int _x , int _y);
+};
+#endif
